@@ -14,23 +14,38 @@ export default function TodayDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper: get start & end of today in ISO strings
+  function getTodayRange() {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    return {
+      start: start.toISOString(),
+      end: end.toISOString(),
+    };
+  }
+
   async function fetchTasks() {
     setLoading(true);
     setError(null);
 
     try {
-      // TODO:
-      // - Query tasks that are due today and not completed
-      // - Use supabase.from("tasks").select(...)
-      // - You can do date filtering in SQL or client-side
+      const { start, end } = getTodayRange();
 
-      // Example:
-      // const { data, error } = await supabase
-      //   .from("tasks")
-      //   .select("*")
-      //   .eq("status", "open");
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("id, type, status, application_id, due_at")
+        .gte("due_at", start)
+        .lte("due_at", end)
+        .neq("status", "completed")
+        .order("due_at", { ascending: true });
 
-      setTasks([]);
+      if (error) throw error;
+
+      setTasks(data ?? []);
     } catch (err: any) {
       console.error(err);
       setError("Failed to load tasks");
@@ -41,9 +56,15 @@ export default function TodayDashboard() {
 
   async function markComplete(id: string) {
     try {
-      // TODO:
-      // - Update task.status to 'completed'
-      // - Re-fetch tasks or update state optimistically
+      const { error } = await supabase
+        .from("tasks")
+        .update({ status: "completed" })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      // Re-fetch the tasks after updating
+      await fetchTasks();
     } catch (err: any) {
       console.error(err);
       alert("Failed to update task");
@@ -60,27 +81,46 @@ export default function TodayDashboard() {
   return (
     <main style={{ padding: "1.5rem" }}>
       <h1>Today&apos;s Tasks</h1>
+
       {tasks.length === 0 && <p>No tasks due today 🎉</p>}
 
       {tasks.length > 0 && (
-        <table>
+        <table
+          style={{
+            borderCollapse: "collapse",
+            marginTop: "1rem",
+            minWidth: "60%",
+          }}
+        >
           <thead>
             <tr>
-              <th>Type</th>
-              <th>Application</th>
-              <th>Due At</th>
-              <th>Status</th>
-              <th>Action</th>
+              <th style={{ borderBottom: "1px solid #ccc", padding: "8px" }}>
+                Type
+              </th>
+              <th style={{ borderBottom: "1px solid #ccc", padding: "8px" }}>
+                Application
+              </th>
+              <th style={{ borderBottom: "1px solid #ccc", padding: "8px" }}>
+                Due At
+              </th>
+              <th style={{ borderBottom: "1px solid #ccc", padding: "8px" }}>
+                Status
+              </th>
+              <th style={{ borderBottom: "1px solid #ccc", padding: "8px" }}>
+                Action
+              </th>
             </tr>
           </thead>
           <tbody>
             {tasks.map((t) => (
               <tr key={t.id}>
-                <td>{t.type}</td>
-                <td>{t.application_id}</td>
-                <td>{new Date(t.due_at).toLocaleString()}</td>
-                <td>{t.status}</td>
-                <td>
+                <td style={{ padding: "8px" }}>{t.type}</td>
+                <td style={{ padding: "8px" }}>{t.application_id}</td>
+                <td style={{ padding: "8px" }}>
+                  {new Date(t.due_at).toLocaleString()}
+                </td>
+                <td style={{ padding: "8px" }}>{t.status}</td>
+                <td style={{ padding: "8px" }}>
                   {t.status !== "completed" && (
                     <button onClick={() => markComplete(t.id)}>
                       Mark Complete
